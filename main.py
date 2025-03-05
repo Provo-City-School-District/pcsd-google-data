@@ -7,6 +7,7 @@ customer API. To learn more, visit https://developer.google.com/zero-touch
 """
 
 import sys
+import json
 from apiclient import discovery
 from dotenv import load_dotenv
 from os import getenv
@@ -34,13 +35,25 @@ def get_service():
     creds = get_credential()
     return discovery.build('admin', 'directory_v1', credentials=creds)
 
-
 def main():
     load_dotenv()
     service = get_service()
-    devices = service.chromeosdevices().list(customerId=getenv("CUSTOMER_ID")).execute()
-    device_lst = devices.get("chromeosdevices", [])
-    print(len(device_lst))
+    next_page_token = None
+    all_devices = []
+    while True:
+        response = service.chromeosdevices().list(customerId=getenv("CUSTOMER_ID"), 
+            maxResults=300, 
+            pageToken=next_page_token).execute()
+        devices = response.get("chromeosdevices", [])
+        print(f"fetched another {len(devices)} devices")
+        all_devices.extend(devices)
+        next_page_token = response.get("nextPageToken")
+        if next_page_token == None:
+            break
+
+    print(len(all_devices))
+    with open("all_devices.json", 'w') as f:
+        json.dump(all_devices, f, indent=4)
     
 
 
