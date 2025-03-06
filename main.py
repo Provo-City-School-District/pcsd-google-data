@@ -5,9 +5,10 @@
 This script forms the quickstart introduction to the zero-touch enrollemnt
 customer API. To learn more, visit https://developer.google.com/zero-touch
 """
-
+import mysql.connector
 import sys
 import json
+from datetime import datetime
 from apiclient import discovery
 from dotenv import load_dotenv
 from os import getenv
@@ -35,9 +36,7 @@ def get_service():
     creds = get_credential()
     return discovery.build('admin', 'directory_v1', credentials=creds)
 
-def main():
-    load_dotenv()
-    service = get_service()
+def get_all_devices(service):
     next_page_token = None
     all_devices = []
     while True:
@@ -51,10 +50,80 @@ def main():
         if next_page_token == None:
             break
 
-    print(len(all_devices))
-    with open("all_devices.json", 'w') as f:
-        json.dump(all_devices, f, indent=4)
+    return all_devices
+
+def convert_google_timestamp(timestamp):
+    return datetime.fromisoformat(timestamp.replace("Z", "+00:00")).strftime("%Y-%m-%d %H:%M:%S")
+
+def main():
+    load_dotenv()
+    #service = get_service()
+    # devices = get_all_devices(service)
+
+    # write devices to file
+    # with open("all_devices.json", 'w') as f:
+    #     json.dump(devices, f, indent=4)
+
+    #insert data to vault DB
+    vault_conn = mysql.connector.connect(
+        host=getenv("VAULT_HOST_IP"),
+        port=getenv("VAULT_HOST_PORT"),
+        user=getenv("VAULT_USER"),
+        password=getenv("VAULT_PASSWORD"),
+        database=getenv("VAULT_DATABASE")
+    )
+
+
+    with open("all_devices.json") as f:
+        device_data = json.loads(f.read())
+
+    query = "INSERT INTO google_admin_free_ram_reports (serial, report_date, ram_free) VALUES "
+    curs = vault_conn.cursor()
+    for device in device_data:
+        serial = device["serialNumber"]
+        ram_usage_reports = device.get("systemRamFreeReports")
+        if ram_usage_reports is not None:
+            for report in ram_usage_reports:
+                report_date = convert_google_timestamp(report["reportTime"])
+                ram_free = int(report["systemRamFreeInfo"][0])
+                query += f"(\"{serial}\", \"{report_date}\", {ram_free}), "
+    query = query[:-2] + ";"
+
+    print("inserting all reports")
+    curs.execute(query)
+    print("done")
+    for device in device_data:
+        serial = device["serialNumber"]
+        ram_total = device.get("systemRamTotal") if not None else 0
+        os_version = device.get("osVersion") if not None else 0
+        disk_space_usage = device.get("diskSpaceUsage")
+
+        if disk_space_usage is not None:
+            storage_total = int(disk_space_usage["capacityBytes"])
+            storage_free = storage_total - int(disk_space_usage["usedBytes"])
+        else:
+            storage_total = 0
+            storage_free = 0
+
+        last_check_in = convert_google_timestamp(device["lastSync"])
+
+        query = """
+            INSERT INTO google_admin_data 
+                (serial, ram_total, os_version, storage_total, storage_free, last_check_in)
+            VALUES
+                (%s, %s, %s, %s, %s, %s)
+            ON DUPLICATE KEY UPDATE 
+                serial=serial, ram_total=ram_total, os_version=os_version, storage_total=storage_total, 
+                storage_free=storage_free, last_check_in=last_check_in;
+        """
+
+        vals = (serial, ram_total, os_version, storage_total, storage_free, last_check_in)
+        res = curs.execute(query, vals)
+
+    vault_conn.commit()
     
+   # curs.execute("INSERT INTO google_admin_data assets")
+   # myresult = curs.fetchall()
 
 
 if __name__ == '__main__':
