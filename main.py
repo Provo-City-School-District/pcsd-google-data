@@ -44,7 +44,7 @@ def get_all_devices(service):
             maxResults=300, 
             pageToken=next_page_token).execute()
         devices = response.get("chromeosdevices", [])
-        print(f"fetched another {len(devices)} devices")
+        print(f"fetched {len(devices)} devices (total={len(all_devices)})")
         all_devices.extend(devices)
         next_page_token = response.get("nextPageToken")
         if next_page_token == None:
@@ -57,13 +57,16 @@ def convert_google_timestamp(timestamp):
 
 def main():
     load_dotenv()
-    #service = get_service()
-    # devices = get_all_devices(service)
+
+    # uncomment this to load newest data
+    """
+    service = get_service()
+    devices = get_all_devices(service)
 
     # write devices to file
-    # with open("all_devices.json", 'w') as f:
-    #     json.dump(devices, f, indent=4)
-
+    with open("all_devices.json", 'w') as f:
+        json.dump(devices, f, indent=4)
+    """
     #insert data to vault DB
     vault_conn = mysql.connector.connect(
         host=getenv("VAULT_HOST_IP"),
@@ -77,26 +80,19 @@ def main():
     with open("all_devices.json") as f:
         device_data = json.loads(f.read())
 
-    query = "INSERT INTO google_admin_free_ram_reports (serial, report_date, ram_free) VALUES "
     curs = vault_conn.cursor()
-    for device in device_data:
-        serial = device["serialNumber"]
-        ram_usage_reports = device.get("systemRamFreeReports")
-        if ram_usage_reports is not None:
-            for report in ram_usage_reports:
-                report_date = convert_google_timestamp(report["reportTime"])
-                ram_free = int(report["systemRamFreeInfo"][0])
-                query += f"(\"{serial}\", \"{report_date}\", {ram_free}), "
-    query = query[:-2] + ";"
 
-    print("inserting all reports")
-    curs.execute(query)
-    print("done")
     for device in device_data:
         serial = device["serialNumber"]
         ram_total = device.get("systemRamTotal") if not None else 0
         os_version = device.get("osVersion") if not None else 0
         disk_space_usage = device.get("diskSpaceUsage")
+        recent_users = device.get("recentUsers")
+        if recent_users is not None and len(recent_users) > 0:
+            last_user = recent_users[0]
+            last_user_email = last_user.get("email") if not None else ""
+        else:
+            last_user_email = ""
 
         if disk_space_usage is not None:
             storage_total = int(disk_space_usage["capacityBytes"])
@@ -109,16 +105,35 @@ def main():
 
         query = """
             INSERT INTO google_admin_data 
-                (serial, ram_total, os_version, storage_total, storage_free, last_check_in)
+                (serial, ram_total, os_version, storage_total, storage_free, last_check_in, last_user)
             VALUES
-                (%s, %s, %s, %s, %s, %s)
+                (%s, %s, %s, %s, %s, %s, %s)
             ON DUPLICATE KEY UPDATE 
-                serial=serial, ram_total=ram_total, os_version=os_version, storage_total=storage_total, 
-                storage_free=storage_free, last_check_in=last_check_in;
+                ram_total=ram_total, os_version=os_version, storage_total=storage_total, 
+                storage_free=storage_free, last_check_in=last_check_in, last_user=last_user;
         """
 
-        vals = (serial, ram_total, os_version, storage_total, storage_free, last_check_in)
+        vals = (serial, ram_total, os_version, storage_total, storage_free, last_check_in, last_user_email)
+        #print(vals)
         res = curs.execute(query, vals)
+
+
+    query = "INSERT INTO google_admin_free_ram_reports (serial, report_date, ram_free) VALUES "
+    for device in device_data:
+        serial = device["serialNumber"]
+        ram_usage_reports = device.get("systemRamFreeReports")
+        if ram_usage_reports is not None:
+            for report in ram_usage_reports:
+                report_date = convert_google_timestamp(report["reportTime"])
+                ram_free = int(report["systemRamFreeInfo"][0])
+                query += f"(\"{serial}\", \"{report_date}\", {ram_free}), "
+    # remove trailing comma
+    query = query[:-2]
+    query += "ON DUPLICATE KEY UPDATE serial=serial, report_date=report_date, ram_free=ram_free;"
+
+    print("inserting all ram reports")
+    curs.execute(query)
+    print("done")
 
     vault_conn.commit()
     
