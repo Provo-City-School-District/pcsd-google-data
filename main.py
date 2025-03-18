@@ -118,7 +118,7 @@ def main():
         res = curs.execute(query, vals)
 
 
-    query = "INSERT INTO google_admin_free_ram_reports (serial, report_date, ram_free) VALUES "
+    query = "INSERT INTO google_admin_ram_reports (serial, report_date, ram_free) VALUES "
     for device in device_data:
         serial = device["serialNumber"]
         ram_usage_reports = device.get("systemRamFreeReports")
