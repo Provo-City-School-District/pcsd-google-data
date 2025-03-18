@@ -59,14 +59,14 @@ def main():
     load_dotenv()
 
     # uncomment this to load newest data
-    """
+
     service = get_service()
     devices = get_all_devices(service)
 
     # write devices to file
     with open("all_devices.json", 'w') as f:
         json.dump(devices, f, indent=4)
-    """
+
     #insert data to vault DB
     vault_conn = mysql.connector.connect(
         host=getenv("VAULT_HOST_IP"),
