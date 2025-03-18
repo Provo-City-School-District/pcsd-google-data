@@ -3,7 +3,7 @@
 Requirements:
   - Modern Python3
   - Requirements listed in requirements.txt
-  - .env file with needed variables (in password manager)
+  - pcsd-google-data .env file (in password manager)
   - pcsd-google-data service account key (in password manager)
   - venv
 
