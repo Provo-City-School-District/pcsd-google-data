@@ -59,14 +59,14 @@ def main():
     load_dotenv()
 
     # uncomment this to load newest data
-
+    """
     service = get_service()
     devices = get_all_devices(service)
 
     # write devices to file
     with open("all_devices.json", 'w') as f:
         json.dump(devices, f, indent=4)
-
+    """
     #insert data to vault DB
     vault_conn = mysql.connector.connect(
         host=getenv("VAULT_HOST_IP"),
@@ -88,6 +88,8 @@ def main():
         os_version = device.get("osVersion") if not None else 0
         disk_space_usage = device.get("diskSpaceUsage")
         recent_users = device.get("recentUsers")
+        status = device.get("status")
+        ou_path = device.get("orgUnitPath")
         if recent_users is not None and len(recent_users) > 0:
             last_user = recent_users[0]
             last_user_email = last_user.get("email") if not None else ""
@@ -105,15 +107,16 @@ def main():
 
         query = """
             INSERT INTO google_admin_data 
-                (serial, ram_total, os_version, storage_total, storage_free, last_check_in, last_user)
+                (serial, ram_total, os_version, storage_total, storage_free, last_check_in, last_user, ou_path, status)
             VALUES
-                (%s, %s, %s, %s, %s, %s, %s)
+                (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON DUPLICATE KEY UPDATE 
                 ram_total=ram_total, os_version=os_version, storage_total=storage_total, 
-                storage_free=storage_free, last_check_in=last_check_in, last_user=last_user;
+                storage_free=storage_free, last_check_in=last_check_in, last_user=last_user,
+                ou_path=ou_path, status=status;
         """
 
-        vals = (serial, ram_total, os_version, storage_total, storage_free, last_check_in, last_user_email)
+        vals = (serial, ram_total, os_version, storage_total, storage_free, last_check_in, last_user_email, ou_path, status)
         #print(vals)
         res = curs.execute(query, vals)
 
