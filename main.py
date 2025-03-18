@@ -117,7 +117,7 @@ def main():
         """
 
         vals = (serial, ram_total, os_version, storage_total, storage_free, last_check_in, last_user_email, ou_path, status,
-                serial, ram_total, os_version, storage_total, storage_free, last_check_in, last_user_email, ou_path, status)
+                ram_total, os_version, storage_total, storage_free, last_check_in, last_user_email, ou_path, status)
         #print(vals)
         res = curs.execute(query, vals)
 
