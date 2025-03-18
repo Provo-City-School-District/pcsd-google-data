@@ -111,12 +111,13 @@ def main():
             VALUES
                 (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON DUPLICATE KEY UPDATE 
-                ram_total=ram_total, os_version=os_version, storage_total=storage_total, 
-                storage_free=storage_free, last_check_in=last_check_in, last_user=last_user,
-                ou_path=ou_path, status=status;
+                ram_total=%s, os_version=%s, storage_total=%s, 
+                storage_free=%s, last_check_in=%s, last_user=%s,
+                ou_path=%s, status=%s;
         """
 
-        vals = (serial, ram_total, os_version, storage_total, storage_free, last_check_in, last_user_email, ou_path, status)
+        vals = (serial, ram_total, os_version, storage_total, storage_free, last_check_in, last_user_email, ou_path, status,
+                serial, ram_total, os_version, storage_total, storage_free, last_check_in, last_user_email, ou_path, status)
         #print(vals)
         res = curs.execute(query, vals)
 
